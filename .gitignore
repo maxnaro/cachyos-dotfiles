@@ -1,0 +1,11 @@
+# Machine state, credentials and local overrides
+**/fish_variables
+**/target/
+*.bak
+*.bak.*
+*.local
+.env
+.env.*
+**/local.fish
+__pycache__/
+*.pyc

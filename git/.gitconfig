@@ -1,0 +1,17 @@
+[user]
+	name = Max Narongchai
+	email = Max.Narongchai12@gmail.com
+[filter "lfs"]
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true
+	clean = git-lfs clean -- %f
+[push]
+	autoSetupRemote = true
+[init]
+	defaultBranch = main
+[core]
+	editor = nvim
+
+[include]
+	path = ~/.gitconfig.local

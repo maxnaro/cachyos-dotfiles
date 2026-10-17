@@ -1,0 +1,19 @@
+# Native CLI packages, checked against this machine's package databases.
+git
+git-lfs
+curl
+base-devel
+bash-completion
+util-linux
+fzf
+bat
+eza
+fastfetch
+neovim
+fish
+zsh
+lazygit
+ripgrep
+fd
+zoxide
+tmux
