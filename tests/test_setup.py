@@ -15,7 +15,9 @@ class DotfilesTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.home = Path(self.temp.name) / "home"
         self.home.mkdir()
-        self.env = dict(os.environ, HOME=str(self.home),
+        # Do not discover tools from the real user's ~/.local/bin (notably
+        # pokemon-greeting), which would bypass the temporary-home fixtures.
+        self.env = dict(os.environ, HOME=str(self.home), PATH=os.defpath,
                         XDG_CONFIG_HOME=str(self.home / ".config"),
                         XDG_DATA_HOME=str(self.home / ".local/share"),
                         XDG_CACHE_HOME=str(self.home / ".cache"))
@@ -133,6 +135,90 @@ class DotfilesTests(unittest.TestCase):
         for value in ("bash,unknown", "bash,", ",fish", "fish,,zsh", ""):
             self.setup("--only", value, ok=False)
         self.assertEqual(list(self.home.iterdir()), [])
+
+    def test_desktop_is_opt_in(self):
+        self.setup()
+        self.assertFalse((self.home / ".config/noctalia").exists())
+
+    def test_desktop_backup_and_repeat_install(self):
+        config = self.home / ".config/noctalia/config.toml"
+        config.parent.mkdir(parents=True)
+        config.write_text('[shell]\nfont_family = "original"\n')
+        unrelated = config.parent / "local-state"
+        unrelated.write_text("preserve")
+        preview = self.setup("--only", "desktop", "--dry-run")
+        self.assertIn("Would back up:", preview.stdout)
+        self.assertFalse(config.is_symlink())
+        self.setup("--only", "desktop")
+        self.assertEqual(config.resolve(), ROOT / "desktop/.config/noctalia/config.toml")
+        backups = list(config.parent.glob("config.toml.bak.*"))
+        self.assertEqual(len(backups), 1)
+        self.assertIn("original", backups[0].read_text())
+        self.assertEqual(unrelated.read_text(), "preserve")
+        self.assertFalse((self.home / ".bashrc").exists())
+        self.assertEqual((self.home / ".config/hypr/dotfiles-dock.lua").resolve(),
+                         ROOT / "desktop/.config/hypr/dotfiles-dock.lua")
+        self.assertFalse((self.home / ".config/hypr/hyprland.lua").exists())
+        self.setup("--only", "desktop")
+        self.assertEqual(list(config.parent.glob("config.toml.bak.*")), backups)
+
+    @unittest.skipUnless(shutil.which("noctalia"), "Noctalia is unavailable")
+    def test_desktop_effective_attached_surface(self):
+        import tomllib
+        self.setup("--only", "desktop")
+        env = dict(self.env, XDG_STATE_HOME=str(self.home / ".local/state"))
+        result = subprocess.run(["noctalia", "config", "export", "full"],
+                                env=env, text=True, capture_output=True, check=True)
+        effective = tomllib.loads(result.stdout)
+        bar = effective["bar"]["default"]
+        self.assertEqual(bar["margin_ends"], 530)
+        self.assertEqual(bar["background_opacity"], 1)
+        self.assertEqual(bar["center"], ["workspaces"])
+        self.assertEqual(bar["start"], ["battery"])
+        self.assertEqual(bar["end"], ["clock"])
+        self.assertEqual(bar["radius_top_left"], 0)
+        self.assertEqual(bar["radius_bottom_left"], 12)
+        self.assertEqual(effective["widget"]["workspaces"]["capsule_radius"], 12)
+
+    @unittest.skipUnless(shutil.which("lua"), "Lua is unavailable")
+    def test_super_hold_bindings(self):
+        subprocess.run(["lua", "tests/test_dock.lua"], cwd=ROOT, check=True,
+                       capture_output=True, text=True)
+
+    def test_desktop_preset_structure(self):
+        import tomllib
+        with (ROOT / "desktop/.config/noctalia/config.toml").open("rb") as stream:
+            config = tomllib.load(stream)
+        bar = config["bar"]["default"]
+        self.assertTrue(bar["auto_hide"])
+        self.assertTrue(bar["show_on_workspace_switch"])
+        self.assertFalse(bar["reserve_space"])
+        self.assertEqual(bar["margin_edge"], 0)
+        self.assertEqual(bar["margin_ends"], 530)
+        self.assertEqual(bar["radius_top_left"], 0)
+        self.assertEqual(bar["radius_top_right"], 0)
+        self.assertEqual(bar["border"], "outline_variant")
+        self.assertEqual(bar["border_width"], 0.0)
+        self.assertEqual(bar["background_opacity"], 1.0)
+        self.assertFalse(bar["shadow"])
+        self.assertEqual(bar["center"], ["workspaces"])
+        self.assertNotIn("capsule_group", bar)
+        self.assertEqual(bar["radius_bottom_left"], 12)
+        self.assertEqual(bar["radius_bottom_right"], 12)
+        self.assertEqual(config["widget"]["workspaces"]["capsule_radius"], 12)
+        self.assertEqual(bar["thickness"], 36)
+        self.assertEqual(bar["padding"], 16)
+        self.assertEqual(bar["start"], ["battery"])
+        self.assertEqual(bar["end"], ["clock"])
+        self.assertEqual(config["widget"]["clock"]["format"], "{:%H:%M · %a %d %b}")
+        self.assertEqual(config["theme"]["source"], "wallpaper")
+        self.assertEqual(config["widget"]["workspaces"]["active_pill_size"], 2.5)
+        self.assertFalse(config["widget"]["workspaces"].get("anchor", False))
+        self.assertNotIn("dock_balance", config["widget"])
+        self.assertFalse(bar["hover_highlight"])
+        self.assertFalse(bar["show_tooltip"])
+        for widget in ("battery", "workspaces", "clock"):
+            self.assertFalse(config["widget"][widget]["interactive"])
 
     def test_git_is_explicit(self):
         self.setup("--only", "git")

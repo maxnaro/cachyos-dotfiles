@@ -7,6 +7,10 @@ Includes the same Fish prompt, eza shortcuts, bat man pages, FZF search and
 previews, zoxide navigation, automatic Python environments, LazyVim, and tmux
 styling/navigation. Zsh retains the installed CachyOS configuration and adds the
 shared terminal helpers. Bash remains usable directly; it does not launch Fish.
+An opt-in [top-attached Noctalia dock](docs/desktop.md) keeps the original CachyOS
+wallpaper-derived styling and controls, with native auto-hide/workspace reveal
+and a Hyprland hook to reveal the bar while Super is held.
+
 No Windows paths, Debian bootstrap, or downloaded replacements for native CLI
 packages are included.
 
@@ -50,9 +54,10 @@ at its installed location, since configurations link back to it.
 | Bash | `.bashrc`, `.bash_profile`, `.inputrc`, `.blerc` |
 | Fish | `config.fish`, prompt and `conf.d` helpers, linked individually |
 | Zsh | `.zshrc`, keeping CachyOS completion, theme and suggestions |
-| Neovim | `.config/nvim`, including the existing plugin lockfile |
+| Neovim | `.config/nvim`, with [Noctalia-synchronized colors](docs/neovim.md) and the existing plugin lockfile |
 | tmux | `.config/tmux`, Alt navigation and OSC 52 clipboard |
 | Git (opt-in) | `.gitconfig`, retaining the identity from the WSL repo |
+| Desktop (opt-in) | Noctalia top-attached dock and Hyprland Super-hold hook |
 
 Bash and Zsh also link `.bash_aliases`, `.config/dotfiles/terminal.sh`, and
 `.scripts/auto_venv.sh`. `.blerc` is retained for an optional existing ble.sh
@@ -74,8 +79,11 @@ rm ~/.bashrc
 mv ~/.bashrc.bak.20261017-150000 ~/.bashrc
 ```
 
-For Fish, restore individual files in the same way. Setup does not modify desktop
-configuration such as Hyprland, Noctalia, Kitty, or KDE.
+For Fish, restore individual files in the same way. Default setup does not modify
+desktop configuration. `./setup.sh --only desktop` explicitly replaces the
+Noctalia config with a backed-up dock preset; read [the desktop guide](docs/desktop.md)
+first. Setup links the Hyprland hook but does not edit `hyprland.lua`; load it
+once as described in the guide. Kitty and KDE configuration are not modified.
 
 ## Personal additions
 

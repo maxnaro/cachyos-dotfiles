@@ -11,8 +11,8 @@ usage() {
     cat <<'EOF'
 Usage: ./setup.sh [options]
   --dry-run             Preview all actions without writing files or networking
-  --only LIST           Comma-separated bash,fish,zsh,nvim,tmux,git profiles
-                        Default: bash,fish,zsh,nvim,tmux; Git config is opt-in
+  --only LIST           Comma-separated bash,fish,zsh,nvim,tmux,git,desktop profiles
+                        Default: bash,fish,zsh,nvim,tmux; Git and desktop are opt-in
   --install-packages    Run sudo pacman -Syu --needed with packages/pacman.txt
   --with-prefix-help    Fetch the pinned tmux submodule and build it with Cargo
   --with-pokemon        Install the Pokémon greeter without upstream shell hooks
@@ -42,7 +42,7 @@ done
 [[ -n $profiles && $profiles != ,* && $profiles != *, && $profiles != *,,* ]] || die 'Empty profile in --only'
 IFS=, read -r -a selected <<< "$profiles"
 for profile in "${selected[@]}"; do
-    case "$profile" in bash|fish|zsh|nvim|tmux|git) ;; *) die "Unknown profile: $profile" ;; esac
+    case "$profile" in bash|fish|zsh|nvim|tmux|git|desktop) ;; *) die "Unknown profile: $profile" ;; esac
 done
 # Shared files are required by both shell profiles, including Zsh without Bash.
 sources=()
@@ -68,6 +68,10 @@ for profile in "${selected[@]}"; do
             ;;
         nvim|tmux) add_link "$profile/.config/$profile" ".config/$profile" ;;
         git) add_link git/.gitconfig .gitconfig ;;
+        desktop)
+            add_link desktop/.config/noctalia/config.toml .config/noctalia/config.toml
+            add_link desktop/.config/hypr/dotfiles-dock.lua .config/hypr/dotfiles-dock.lua
+            ;;
     esac
 done
 if [[ ,$profiles, == *,bash,* || ,$profiles, == *,zsh,* ]]; then
@@ -146,4 +150,7 @@ for i in "${!sources[@]}"; do
     ln -s -- "$src" "$dst"
     printf 'Linked: %s -> %s\n' "$dst" "$src"
 done
+if [[ ,$profiles, == *,desktop,* ]]; then
+    printf 'Desktop profile: see docs/desktop.md for the Super-key hook, reload and rollback.\n'
+fi
 printf 'Done. Open a new shell to load the selected profiles.\n'
