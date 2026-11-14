@@ -158,7 +158,11 @@ if $prefix_help || $tmux_plugins; then
     else
         command -v cc >/dev/null || die 'Prefix help needs a C linker; install base-devel'
         command -v cargo >/dev/null || die 'Prefix help needs Cargo; install/configure a Rust toolchain first (see README)'
-        git -C "$DOTFILES_DIR/tmux/.config/tmux" submodule update --init --recursive
+        if $tmux_plugins; then
+            git -C "$DOTFILES_DIR/tmux/.config/tmux" submodule update --init --recursive
+        else
+            git -C "$DOTFILES_DIR/tmux/.config/tmux" submodule update --init --recursive -- plugins/tmux-prefix-help
+        fi
         plugin="$DOTFILES_DIR/tmux/.config/tmux/plugins/tmux-prefix-help"
         cargo build --release --locked --manifest-path "$plugin/Cargo.toml" --target-dir "$plugin/target"
         if $tmux_plugins; then

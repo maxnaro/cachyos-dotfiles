@@ -81,7 +81,7 @@ class DotfilesTests(unittest.TestCase):
         self.env["PATH"] = str(binaries) + os.pathsep + self.env["PATH"]
         self.setup("--only", "git", "--with-prefix-help")
         self.assertEqual((self.home / "git-args").read_text().splitlines(),
-                         ["-C", str(ROOT / "tmux/.config/tmux"), "submodule", "update", "--init", "--recursive"])
+                         ["-C", str(ROOT / "tmux/.config/tmux"), "submodule", "update", "--init", "--recursive", "--", "plugins/tmux-prefix-help"])
         cargo_args = (self.home / "cargo-args").read_text().splitlines()
         self.assertEqual(cargo_args[:3], ["build", "--release", "--locked"])
         self.assertIn(str(ROOT / "tmux/.config/tmux/plugins/tmux-prefix-help/Cargo.toml"), cargo_args)
