@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    container: archlinux:base
+    steps:
+      - name: Install native test tools
+        run: pacman -Syu --noconfirm --needed git python fish zsh tmux lua neovim
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: recursive
+      - name: Parent tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Shell tests
+        run: python3 -m unittest discover -s modules/shell/tests -v
+      - name: Theme tests and generated assets
+        run: |
+          python3 -m unittest discover -s modules/theme/tests -v
+          python3 modules/theme/scripts/render.py --check
+      - name: tmux tests
+        run: python3 -m unittest discover -s tmux/.config/tmux/tests -v
+      - name: Optional native checks
+        run: |
+          if command -v lua >/dev/null; then lua tests/test_dock.lua; fi
+          if command -v nvim >/dev/null && nvim --headless -u NONE +'lua if vim.fn.has("nvim-0.11") == 0 then vim.cmd.cquit() end' +qa; then
+            python3 nvim/.config/nvim/tests/dbml.py
+          fi

@@ -13,6 +13,11 @@ neovim
 fish
 zsh
 lazygit
+atuin
+python
+kitty
+alacritty
+fontconfig
 ripgrep
 fd
 zoxide

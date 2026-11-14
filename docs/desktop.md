@@ -1,11 +1,12 @@
 # Top-attached Noctalia dock
 
-An opt-in **Noctalia 5.3+ / Hyprland 0.56 Lua** preset. It keeps the original
-CachyOS Noctalia design rather than duplicating the Windows Zebar rail.
+An opt-in **Noctalia 5.3+ / Hyprland 0.56 Lua** preset. It uses the shared Dotfiles palette with a native Noctalia bar.
 
 ## Design and behavior
 
-- Native wallpaper-derived dark palette, not fixed chocolate/teal colors.
+- Native custom `Dotfiles` palette with numbered, equal workspace pills.
+  The Chocolatier dark background is `#281F11`; the Windows dock background
+  is `#2A201A`, with teal `#7EA69F`.
 - Battery on the left; time and date (`HH:MM · Fri 07 Nov`) on the right.
   No launcher/settings owl buttons, following Zebar's minimal utility layout.
 - Native attached bar surface, not a capsule group: flat top corners and 12px
@@ -13,21 +14,22 @@ CachyOS Noctalia design rather than duplicating the Windows Zebar rail.
 - Battery uses the left lane, workspaces the center lane, and clock/date the
   right lane, spreading content within the existing width with 16px horizontal
   padding at each end. Workspace pills stay
-  centered independently of side content and have their own explicit 12px radius
-  so surface geometry does not flatten them.
+  centered independently of side content and use a 3px pill radius.
 - The native surface requires pixel insets on installed Noctalia: 530px per
   side produces a compact 476px dock on the current 1536px logical display.
   This is not automatic fit-to-content; adjust insets on other monitors.
 - Network, audio and other utilities remain available through control center
   (`Super+X` in the original keybindings); the dock omits their individual widgets
   and control-center button to keep the workspace indicator central.
-- Opaque native surface, without a border, blur or shadow.
-  Accent color stays on widgets, not a bright frame around the entire panel.
+- Opaque native surface with a subtle outline and shadow, without compositor blur.
 - Passive widgets: no clicks, scrolling, hover highlights, or tooltips. This
   disables widget interaction, not the host surface's input region: it does not
   guarantee that clicks reach windows behind the dock. Edge-hover reveal remains.
 - No window title, media title or system-monitor cluster competing with workspaces.
-- Original UI scale, widget colors, theme templates, screenshot and session settings.
+- The Coniston photo is used as a static wallpaper; wallpaper automation is
+  disabled. Shell mode follows the selected shared theme.
+- GTK and Qt theme templates remain enabled. Native Kitty and Alacritty
+  templates are disabled so they do not overwrite the shared managed colours.
 - Auto-hide and native workspace-switch reveal, with no reserved desktop space.
 - Hold either **Super** key to reveal the bar on all monitors. It stays visible
   until both Super keys are released, then retracts. Existing Super shortcuts
@@ -45,8 +47,11 @@ Super release retracts immediately. Native edge-hover reveal still works.
 ## Install
 
 **This replaces the Noctalia configuration, not just its bar section.** Setup
-backs up existing files. This preset retains the original machine's Noctalia
-settings, but does not merge future machine-specific customization automatically.
+backs up existing files. Setup clears saved appearance overrides owned by the
+preset, preserves unrelated Noctalia state, and selects the Coniston wallpaper
+for the default, last, and existing per-monitor paths. It backs up changed
+`settings.toml` before migration; repeat runs do not create another backup when
+there is no change. The preset does not merge future customizations automatically.
 
 ```bash
 cd ~/dotfiles
@@ -59,6 +64,7 @@ The desktop profile links:
 
 - `~/.config/noctalia/config.toml`
 - `~/.config/hypr/dotfiles-dock.lua`
+- `~/.local/share/wallpapers/dotfiles/coniston.jpg`
 
 For Super-held reveal, **load the hook once**, at the end of
 `~/.config/hypr/hyprland.lua` (back up that file first):
@@ -100,13 +106,19 @@ printed by setup. For example:
 rm ~/.config/noctalia/config.toml
 mv ~/.config/noctalia/config.toml.bak.YYYYMMDD-HHMMSS ~/.config/noctalia/config.toml
 rm ~/.config/hypr/dotfiles-dock.lua
+rm ~/.local/share/wallpapers/dotfiles/coniston.jpg
+# Restore the exact settings backup printed by setup, if one was created:
+cp ~/.local/state/noctalia/settings.toml.bak.UNIQUE/original ~/.local/state/noctalia/settings.toml
 hyprctl reload
 noctalia msg config-reload
 ```
 
-If the hook replaced an existing file, restore its printed backup too. If there
-was no prior Noctalia config, remove its symlink and reload to use defaults.
-Other files in the Noctalia and Hyprland config directories are left alone.
+Use the exact printed settings backup path, including its unique directory.
+The state path uses `NOCTALIA_STATE_HOME`, then `XDG_STATE_HOME`, then
+`~/.local/state`; if setup created settings without a prior file, remove that
+new settings file to restore absence. Restore any printed hook or wallpaper link
+backups too. If there was no prior Noctalia config, remove its symlink and reload
+to use defaults. Other Noctalia and Hyprland files are left alone.
 
 ## Validation
 
@@ -118,12 +130,3 @@ noctalia config validate "$PWD/desktop/.config/noctalia/config.toml"
 The Lua behavior test covers press/release, repeated presses, overlapping left
 and right Super holds, and non-consuming bindings. Actual keyboard routing and
 visual appearance still require a live desktop check.
-
-## Workflow comparison / next steps
-
-The CachyOS repo already provides FZF, eza, bat, zoxide, automatic Python
-environments, LazyVim, and tmux navigation. The newer WSL repo additionally has
-Atuin shell history, a dedicated LazyGit theme, newer Chocolatier editor/tmux
-styling, and the tmux RunCat submodule/font workflow. Those remain separate
-ports; this profile does not copy WSL bootstrap scripts, Windows paths, Git
-identity, or replace the modified Neovim lockfile.

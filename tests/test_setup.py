@@ -1,5 +1,6 @@
 """Offline tests: python3 -m unittest discover -s tests -v"""
 import os
+import json
 from pathlib import Path
 import shutil
 import subprocess
@@ -20,7 +21,13 @@ class DotfilesTests(unittest.TestCase):
         self.env = dict(os.environ, HOME=str(self.home), PATH=os.defpath,
                         XDG_CONFIG_HOME=str(self.home / ".config"),
                         XDG_DATA_HOME=str(self.home / ".local/share"),
-                        XDG_CACHE_HOME=str(self.home / ".cache"))
+                        XDG_CACHE_HOME=str(self.home / ".cache"),
+                        XDG_STATE_HOME=str(self.home / ".local/state"),
+                        CODEX_HOME=str(self.home / ".codex"),
+                        CLAUDE_CONFIG_DIR=str(self.home / ".claude"),
+                        DOTFILES_THEME_NO_APPS="1", DOTFILES_THEME_NO_NOCTALIA="1",
+                        DOTFILES_THEME_NO_TMUX="1", DOTFILES_THEME_NO_WINDOWS="1",
+                        DOTFILES_NO_FISH="1", DOTFILES_NO_TMUX="1")
 
     def setup(self, *args, ok=True):
         result = subprocess.run([str(ROOT / "setup.sh"), *args],
@@ -32,9 +39,11 @@ class DotfilesTests(unittest.TestCase):
         return result
 
     def test_dry_run_does_not_write(self):
-        result = self.setup("--dry-run", "--install-packages", "--with-prefix-help", "--with-pokemon")
+        result = self.setup("--dry-run", "--install-packages", "--with-tmux-plugins", "--with-pokemon")
         self.assertIn("sudo pacman -Syu --needed", result.stdout)
         self.assertIn("pokemon-terminal-greeting", result.stdout)
+        self.assertIn("tmux-runcat", result.stdout)
+        self.assertIn("Would apply the shared theme", result.stdout)
         self.assertEqual(list(self.home.iterdir()), [])
 
     def test_pokemon_installer_disables_upstream_hooks(self):
@@ -72,7 +81,7 @@ class DotfilesTests(unittest.TestCase):
         self.env["PATH"] = str(binaries) + os.pathsep + self.env["PATH"]
         self.setup("--only", "git", "--with-prefix-help")
         self.assertEqual((self.home / "git-args").read_text().splitlines(),
-                         ["-C", str(ROOT), "submodule", "update", "--init", "--recursive"])
+                         ["-C", str(ROOT / "tmux/.config/tmux"), "submodule", "update", "--init", "--recursive"])
         cargo_args = (self.home / "cargo-args").read_text().splitlines()
         self.assertEqual(cargo_args[:3], ["build", "--release", "--locked"])
         self.assertIn(str(ROOT / "tmux/.config/tmux/plugins/tmux-prefix-help/Cargo.toml"), cargo_args)
@@ -81,7 +90,7 @@ class DotfilesTests(unittest.TestCase):
     def test_zsh_runs_greeter(self):
         self.setup("--only", "zsh")
         binary = self.home / ".local/bin/pokemon-greeting"
-        binary.parent.mkdir(parents=True)
+        binary.parent.mkdir(parents=True, exist_ok=True)
         binary.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$HOME/greeting-args"\n')
         binary.chmod(0o755)
         result = subprocess.run(["zsh", "-df", "-ic", 'source "$HOME/.zshrc"; true'],
@@ -103,7 +112,7 @@ class DotfilesTests(unittest.TestCase):
         backups = list(self.home.glob(".bashrc.bak.*"))
         self.assertEqual(len(backups), 1)
         self.assertEqual(backups[0].read_text(), "original")
-        self.assertEqual(rc.resolve(), ROOT / "bash/.bashrc")
+        self.assertEqual(rc.resolve(), (ROOT / "modules/shell/bash/.bashrc").resolve())
         self.assertFalse((self.home / ".gitconfig").exists())
         self.setup()
         self.assertEqual(list(self.home.glob(".bashrc.bak.*")), backups)
@@ -178,7 +187,7 @@ class DotfilesTests(unittest.TestCase):
         self.assertEqual(bar["end"], ["clock"])
         self.assertEqual(bar["radius_top_left"], 0)
         self.assertEqual(bar["radius_bottom_left"], 12)
-        self.assertEqual(effective["widget"]["workspaces"]["capsule_radius"], 12)
+        self.assertEqual(effective["widget"]["workspaces"]["capsule_radius"], 3)
 
     @unittest.skipUnless(shutil.which("lua"), "Lua is unavailable")
     def test_super_hold_bindings(self):
@@ -198,27 +207,74 @@ class DotfilesTests(unittest.TestCase):
         self.assertEqual(bar["radius_top_left"], 0)
         self.assertEqual(bar["radius_top_right"], 0)
         self.assertEqual(bar["border"], "outline_variant")
-        self.assertEqual(bar["border_width"], 0.0)
+        self.assertEqual(bar["border_width"], 1.0)
         self.assertEqual(bar["background_opacity"], 1.0)
-        self.assertFalse(bar["shadow"])
+        self.assertTrue(bar["shadow"])
         self.assertEqual(bar["center"], ["workspaces"])
         self.assertNotIn("capsule_group", bar)
         self.assertEqual(bar["radius_bottom_left"], 12)
         self.assertEqual(bar["radius_bottom_right"], 12)
-        self.assertEqual(config["widget"]["workspaces"]["capsule_radius"], 12)
+        self.assertEqual(config["widget"]["workspaces"]["capsule_radius"], 3)
         self.assertEqual(bar["thickness"], 36)
         self.assertEqual(bar["padding"], 16)
         self.assertEqual(bar["start"], ["battery"])
         self.assertEqual(bar["end"], ["clock"])
         self.assertEqual(config["widget"]["clock"]["format"], "{:%H:%M · %a %d %b}")
-        self.assertEqual(config["theme"]["source"], "wallpaper")
-        self.assertEqual(config["widget"]["workspaces"]["active_pill_size"], 2.5)
+        self.assertEqual(config["theme"]["source"], "custom")
+        self.assertEqual(config["widget"]["workspaces"]["active_pill_size"], 1.0)
+        self.assertEqual(config["widget"]["workspaces"]["label_source"], "id")
         self.assertFalse(config["widget"]["workspaces"].get("anchor", False))
         self.assertNotIn("dock_balance", config["widget"])
         self.assertFalse(bar["hover_highlight"])
         self.assertFalse(bar["show_tooltip"])
         for widget in ("battery", "workspaces", "clock"):
             self.assertFalse(config["widget"][widget]["interactive"])
+
+    def test_missing_module_preflight_and_git_only(self):
+        checkout = Path(self.temp.name) / "incomplete"
+        checkout.mkdir()
+        shutil.copy(ROOT / "setup.sh", checkout / "setup.sh")
+        (checkout / "git").mkdir()
+        shutil.copy(ROOT / "git/.gitconfig", checkout / "git/.gitconfig")
+        result = subprocess.run([str(checkout / "setup.sh"), "--only", "nvim"],
+                                env=self.env, text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("git submodule update --init --recursive", result.stderr)
+        self.assertEqual(list(self.home.iterdir()), [])
+        result = subprocess.run([str(checkout / "setup.sh"), "--only", "git"],
+                                env=self.env, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((self.home / ".gitconfig").is_symlink())
+
+    def test_theme_terminal_includes_match_palette(self):
+        import tomllib
+        self.setup("--only", "bash")
+        state = self.home / ".local/state/dotfiles/theme"
+        kitty = self.home / ".config/kitty/themes/dotfiles.conf"
+        alacritty = self.home / ".config/alacritty/themes/dotfiles.toml"
+        self.assertEqual(kitty.resolve(), state / "kitty.conf")
+        self.assertEqual(alacritty.resolve(), state / "alacritty.toml")
+        palette = json.loads((ROOT / "modules/theme/themes/chocolatier.json").read_text())["dark"]
+        lines = kitty.read_text().splitlines()
+        for i, colour in enumerate(palette["ansi"]):
+            self.assertIn(f"color{i} {colour}", lines)
+        parsed = tomllib.loads(alacritty.read_text())
+        names = ("black", "red", "green", "yellow", "blue", "magenta", "cyan", "white")
+        for group, colours in (("normal", palette["ansi"][:8]), ("bright", palette["ansi"][8:])):
+            self.assertEqual([parsed["colors"][group][name] for name in names], colours)
+        terminal_config = tomllib.loads((self.home / ".config/alacritty/alacritty.toml").read_text())
+        self.assertIn("~/.config/alacritty/themes/dotfiles.toml", terminal_config["general"]["import"])
+        self.assertNotIn("primary", terminal_config["colors"])
+        if shutil.which("kitty"):
+            script = ('from kitty.config import load_config; '
+                      f'o=load_config({str(self.home / ".config/kitty/kitty.conf")!r}); '
+                      'assert str(o.background) == "Color(40, 31, 17)"; '
+                      'assert str(o.foreground) == "Color(211, 175, 134)"; '
+                      'assert o.background_opacity == 0.75')
+            subprocess.run(["kitty", "+runpy", script], env=self.env, check=True, capture_output=True, text=True)
+        self.assertFalse((self.home / ".config/noctalia").exists())
+        self.assertFalse((self.home / ".codex").exists())
+        self.assertFalse((self.home / ".claude").exists())
 
     def test_git_is_explicit(self):
         self.setup("--only", "git")
